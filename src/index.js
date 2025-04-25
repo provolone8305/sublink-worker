@@ -37,7 +37,7 @@ async function handleRequest(request) {
         userAgent = 'curl/7.74.0';
       }
       // 设置选择的规则
-      let selectedRules=['Location:CN', 'Private', 'Non-China', 'Google', 'Youtube', 'AI Services', 'Telegram']
+      let selectedRules=['Location:CN', 'Non-China', 'Google', 'Youtube', 'AI Services', 'Telegram']
       // Deal with custom rules
       let customRules = []
 
