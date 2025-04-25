@@ -1,90 +1,56 @@
-import { SingboxConfigBuilder } from './SingboxConfigBuilder.js';
-import { generateHtml } from './htmlBuilder.js';
-import { ClashConfigBuilder } from './ClashConfigBuilder.js';
-import { SurgeConfigBuilder } from './SurgeConfigBuilder.js';
-import { decodeBase64, encodeBase64, GenerateWebPath } from './utils.js';
-import { PREDEFINED_RULE_SETS } from './config.js';
-import { t, setLanguage } from './i18n/index.js';
-import yaml from 'js-yaml';
 
+import { ClashConfigBuilder } from './ClashConfigBuilder.js';
+import {  GenerateWebPath } from './utils.js';
+
+import { t, setLanguage } from './i18n';
+import yaml from 'js-yaml';
+// 创建一个事件监听，拦截网络请求
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
-
 async function handleRequest(request) {
   try {
     const url = new URL(request.url);
-    const lang = url.searchParams.get('lang');
-    setLanguage(lang || request.headers.get('accept-language')?.split(',')[0]);
-    if (request.method === 'GET' && url.pathname === '/') {
-      // Return the HTML form for GET requests
-      return new Response(generateHtml('', '', '', '', url.origin), {
-        headers: { 'Content-Type': 'text/html' }
-      });
-    } else if (url.pathname.startsWith('/singbox') || url.pathname.startsWith('/clash') || url.pathname.startsWith('/surge')) {
-      const inputString = url.searchParams.get('config');
-      let selectedRules = url.searchParams.get('selectedRules');
-      let customRules = url.searchParams.get('customRules');
+    setLanguage('zh-cn');
+    if (url.pathname.startsWith('/clash')) {
+      const username = url.searchParams.get('username');
+      let token = url.searchParams.get('token')
+      let verifyToken = await KVAuth.get(username);
+      if (!verifyToken || verifyToken !== token){
+        return new Response(t('内部服务器错误'), { status: 500 });
+      }
+
+
+      let inputString = await VEMSS_NODE.get(username);
+
+
+      if (!inputString) {
+        console.log('没有找到对应的配置信息')
+        return new Response(t('内部服务器错误'), { status: 500 });
+      }
+
       // 获取语言参数，如果为空则使用默认值
-      let lang = url.searchParams.get('lang') || 'zh-CN';
+      let lang = 'zh-CN';
       // Get custom UserAgent
       let userAgent = url.searchParams.get('ua');
       if (!userAgent) {
         userAgent = 'curl/7.74.0';
       }
-
-      if (!inputString) {
-        return new Response(t('missingConfig'), { status: 400 });
-      }
-
-      if (PREDEFINED_RULE_SETS[selectedRules]) {
-        selectedRules = PREDEFINED_RULE_SETS[selectedRules];
-      } else {
-        try {
-          selectedRules = JSON.parse(decodeURIComponent(selectedRules));
-        } catch (error) {
-          console.error('Error parsing selectedRules:', error);
-          selectedRules = PREDEFINED_RULE_SETS.minimal;
-        }
-      }
-
+      // 设置选择的规则
+      let selectedRules=['Location:CN', 'Private', 'Non-China', 'Google', 'Youtube', 'AI Services', 'Telegram']
       // Deal with custom rules
-      try {
-        customRules = JSON.parse(decodeURIComponent(customRules));
-      } catch (error) {
-        console.error('Error parsing customRules:', error);
-        customRules = [];
-      }
+      let customRules = []
 
-      // Modify the existing conversion logic
-      const configId = url.searchParams.get('configId');
-      let baseConfig;
-      if (configId) {
-        const customConfig = await SUBLINK_KV.get(configId);
-        if (customConfig) {
-          baseConfig = JSON.parse(customConfig);
-        }
-      }
 
-      let configBuilder;
-      if (url.pathname.startsWith('/singbox')) {
-        configBuilder = new SingboxConfigBuilder(inputString, selectedRules, customRules, baseConfig, lang, userAgent);
-      } else if (url.pathname.startsWith('/clash')) {
-        configBuilder = new ClashConfigBuilder(inputString, selectedRules, customRules, baseConfig, lang, userAgent);
-      } else {
-        configBuilder = new SurgeConfigBuilder(inputString, selectedRules, customRules, baseConfig, lang, userAgent)
-          .setSubscriptionUrl(url.href);
-      }
+      let baseConfig='';
+
+      let configBuilder = new ClashConfigBuilder(inputString, selectedRules, customRules, baseConfig, lang, userAgent);
 
       const config = await configBuilder.build();
 
       // 设置正确的 Content-Type 和其他响应头
       const headers = {
-        'content-type': url.pathname.startsWith('/singbox')
-          ? 'application/json; charset=utf-8'
-          : url.pathname.startsWith('/clash')
-            ? 'text/yaml; charset=utf-8'
-            : 'text/plain; charset=utf-8'
+        'content-type': 'text/yaml; charset=utf-8'
       };
 
       // 如果是 Surge 配置，添加 subscription-userinfo 头
@@ -97,112 +63,11 @@ async function handleRequest(request) {
         { headers }
       );
 
-    } else if (url.pathname === '/shorten') {
-      const originalUrl = url.searchParams.get('url');
-      if (!originalUrl) {
-        return new Response(t('missingUrl'), { status: 400 });
-      }
-
-      const shortCode = GenerateWebPath();
-      await SUBLINK_KV.put(shortCode, originalUrl);
-
-      const shortUrl = `${url.origin}/s/${shortCode}`;
-      return new Response(JSON.stringify({ shortUrl }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-    } else if (url.pathname === '/shorten-v2') {
-      const originalUrl = url.searchParams.get('url');
-      let shortCode = url.searchParams.get('shortCode');
-
-      if (!originalUrl) {
-        return new Response('Missing URL parameter', { status: 400 });
-      }
-
-      // Create a URL object to correctly parse the original URL
-      const parsedUrl = new URL(originalUrl);
-      const queryString = parsedUrl.search;
-
-      if (!shortCode) {
-        shortCode = GenerateWebPath();
-      }
-
-      await SUBLINK_KV.put(shortCode, queryString);
-
-      return new Response(shortCode, {
-        headers: { 'Content-Type': 'text/plain' }
-      });
-
-    } else if (url.pathname.startsWith('/b/') || url.pathname.startsWith('/c/') || url.pathname.startsWith('/x/') || url.pathname.startsWith('/s/')) {
-      const shortCode = url.pathname.split('/')[2];
-      const originalParam = await SUBLINK_KV.get(shortCode);
-      let originalUrl;
-
-      if (url.pathname.startsWith('/b/')) {
-        originalUrl = `${url.origin}/singbox${originalParam}`;
-      } else if (url.pathname.startsWith('/c/')) {
-        originalUrl = `${url.origin}/clash${originalParam}`;
-      } else if (url.pathname.startsWith('/x/')) {
-        originalUrl = `${url.origin}/xray${originalParam}`;
-      } else if (url.pathname.startsWith('/s/')) {
-        originalUrl = `${url.origin}/surge${originalParam}`;
-      }
-
-      if (originalUrl === null) {
-        return new Response(t('shortUrlNotFound'), { status: 404 });
-      }
-
-      return Response.redirect(originalUrl, 302);
-    } else if (url.pathname.startsWith('/xray')) {
-      // Handle Xray config requests
-      const inputString = url.searchParams.get('config');
-      const proxylist = inputString.split('\n');
-
-      const finalProxyList = [];
-      // Use custom UserAgent (for Xray) Hmmm...
-      let userAgent = url.searchParams.get('ua');
-      if (!userAgent) {
-        userAgent = 'curl/7.74.0';
-      }
-      let headers = new Headers({
-        "User-Agent"   : userAgent
-      });
-
-      for (const proxy of proxylist) {
-        if (proxy.startsWith('http://') || proxy.startsWith('https://')) {
-          try {
-            const response = await fetch(proxy, {
-              method : 'GET',
-              headers : headers
-            })
-            const text = await response.text();
-            let decodedText;
-            decodedText = decodeBase64(text.trim());
-            // Check if the decoded text needs URL decoding
-            if (decodedText.includes('%')) {
-              decodedText = decodeURIComponent(decodedText);
-            }
-            finalProxyList.push(...decodedText.split('\n'));
-          } catch (e) {
-            console.warn('Failed to fetch the proxy:', e);
-          }
-        } else {
-          finalProxyList.push(proxy);
-        }
-      }
-
-      const finalString = finalProxyList.join('\n');
-
-      if (!finalString) {
-        return new Response('Missing config parameter', { status: 400 });
-      }
-
-      return new Response(encodeBase64(finalString), {
-        headers: { 'content-type': 'application/json; charset=utf-8' }
-      });
-    } else if (url.pathname === '/favicon.ico') {
+    }
+    else if (url.pathname === '/favicon.ico') {
       return Response.redirect('https://cravatar.cn/avatar/9240d78bbea4cf05fb04f2b86f22b18d?s=160&d=retro&r=g', 301)
-    } else if (url.pathname === '/config') {
+    }
+    else if (url.pathname === '/config') {
       const { type, content } = await request.json();
       const configId = `${type}_${GenerateWebPath(8)}`;
 

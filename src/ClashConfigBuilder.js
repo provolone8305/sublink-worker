@@ -1,11 +1,12 @@
 import yaml from 'js-yaml';
-import { CLASH_CONFIG, generateRules, generateClashRuleSets, getOutbounds, PREDEFINED_RULE_SETS } from './config.js';
+import { CLASH_CONFIG, generateRules, generateClashRuleSets } from './config.js';
 import { BaseConfigBuilder } from './BaseConfigBuilder.js';
 import { DeepCopy } from './utils.js';
-import { t } from './i18n/index.js';
+import { t } from './i18n';
 
 export class ClashConfigBuilder extends BaseConfigBuilder {
     constructor(inputString, selectedRules, customRules, baseConfig, lang, userAgent) {
+        console.log(`ClashConfigBuilder: ${inputString}, ${selectedRules}, ${customRules}, ${baseConfig}, ${lang}, ${userAgent}`)
         if (!baseConfig) {
             baseConfig = CLASH_CONFIG;
         }
@@ -152,9 +153,9 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
             lazy: false
         });
     }
-
+    // 节点选择
     addNodeSelectGroup(proxyList) {
-        proxyList.unshift('DIRECT', 'REJECT', t('outboundNames.Auto Select'));
+        proxyList.unshift( t('outboundNames.Auto Select'),'DIRECT', 'REJECT',);
         this.config['proxy-groups'].unshift({
             type: "select",
             name: t('outboundNames.Node Select'),
@@ -164,7 +165,27 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
 
     addOutboundGroups(outbounds, proxyList) {
         outbounds.forEach(outbound => {
-            if (outbound !== t('outboundNames.Node Select')) {
+            console.log(outbound)
+            if (outbound === 'Location:CN') {
+                this.config['proxy-groups'].push({
+                    type: "select",
+                    name: t(`outboundNames.${outbound}`),
+                    proxies: ['DIRECT', 'REJECT',t('outboundNames.Node Select')]
+                });
+            }else if(outbound === 'Bilibili') {
+                this.config['proxy-groups'].push({
+                    type: "select",
+                    name: t(`outboundNames.${outbound}`),
+                    proxies: ['DIRECT', 'REJECT', t('outboundNames.Node Select')]
+                });
+            }else if(outbound === 'Fall Back'){
+                this.config['proxy-groups'].push({
+                    type: "select",
+                    name: t(`outboundNames.${outbound}`),
+                    proxies: ['DIRECT', 'REJECT', t('outboundNames.Node Select')]
+                });
+            }
+            else if (outbound !== t('outboundNames.Node Select')) {
                 this.config['proxy-groups'].push({
                     type: "select",
                     name: t(`outboundNames.${outbound}`),
@@ -190,7 +211,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
         this.config['proxy-groups'].push({
             type: "select",
             name: t('outboundNames.Fall Back'),
-            proxies: [t('outboundNames.Node Select'), ...proxyList]
+            proxies: ['DIRECT', 'REJECT',t('outboundNames.Node Select')]
         });
     }
 
@@ -199,7 +220,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
         return generateRules(this.selectedRules, this.customRules);
     }
 
-    formatConfig() {
+    async formatConfig() {
         const rules = this.generateRules();
         const ruleResults = [];
         
@@ -216,6 +237,17 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
         // Rule-Set & Domain-Set:  To reduce DNS leaks and unnecessary DNS queries,
         // domain & non-IP rules must precede IP rules
 
+        let proxyRules= await KVRules.get('proxyRules')
+        proxyRules=JSON.parse(proxyRules)
+        console.log(proxyRules)
+        let directRules= await KVRules.get('directRules')
+        directRules=JSON.parse(directRules)
+        for (let proxyRule in proxyRules){
+            ruleResults.push(`DOMAIN-SUFFIX,${proxyRules[proxyRule]},${t('outboundNames.Node Select')}`);
+        }
+        for (let directRule in directRules){
+            ruleResults.push(`DOMAIN-SUFFIX,${directRule},${t('outboundNames.Fall Back')}`);
+        }
         rules.filter(rule => !!rule.domain_suffix || !!rule.domain_keyword).map(rule => {
             rule.domain_suffix.forEach(suffix => {
                 ruleResults.push(`DOMAIN-SUFFIX,${suffix},${t('outboundNames.'+ rule.outbound)}`);
@@ -224,7 +256,7 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                 ruleResults.push(`DOMAIN-KEYWORD,${keyword},${t('outboundNames.'+ rule.outbound)}`);
             });
         });
-
+        // 用于获取clash配置
         rules.filter(rule => !!rule.site_rules[0]).map(rule => {
             rule.site_rules.forEach(site => {
                 ruleResults.push(`RULE-SET,${site},${t('outboundNames.'+ rule.outbound)}`);

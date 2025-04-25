@@ -1,6 +1,6 @@
 import { ProxyParser } from './ProxyParsers.js';
 import { DeepCopy, decodeBase64 } from './utils.js';
-import { t, setLanguage } from './i18n/index.js';
+import {  setLanguage } from './i18n';
 import { generateRules, getOutbounds, PREDEFINED_RULE_SETS } from './config.js';
 
 export class BaseConfigBuilder {
@@ -14,6 +14,7 @@ export class BaseConfigBuilder {
     }
 
     async build() {
+        console.log(this)
         const customItems = await this.parseCustomItems();
         this.addCustomItems(customItems);
         this.addSelectors();
@@ -21,11 +22,12 @@ export class BaseConfigBuilder {
     }
 
     async parseCustomItems() {
-        const urls = this.inputString.split('\n').filter(url => url.trim() !== '');
+        // 这里的trim是去除字符串两边的空白格
+        const urls = JSON.parse(this.inputString);
         const parsedItems = [];
         
         for (const url of urls) {
-            // Try to decode if it might be base64
+            // 尝试编码成base64 string
             let processedUrls = this.tryDecodeBase64(url);
             
             // Handle single URL or array of URLs
@@ -90,7 +92,7 @@ export class BaseConfigBuilder {
         } else if (this.selectedRules && Object.keys(this.selectedRules).length > 0) {
             outbounds = getOutbounds(this.selectedRules);
         } else {
-            outbounds = getOutbounds(PREDEFINED_RULE_SETS.minimal);
+            outbounds = getOutbounds(PREDEFINED_RULE_SETS.balanced);
         }
         return outbounds;
     }

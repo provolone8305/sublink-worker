@@ -3,7 +3,8 @@ name = "sublink-worker"
 main = "src/index.js"
 compatibility_date = "2024-07-24"
 compatibility_flags = ["nodejs_compat"]
-
 kv_namespaces = [
-  { binding = "SUBLINK_KV", id = "8943789ed0af49659f887fc740d11240" }
+  { binding = "KVAuth", id = "c8de044f4ebe49a68a65783d3731a846"},
+  { binding = 'VEMSS_NODE',id='d94d3e66bb1249f9ab0e79d36475a4fa'},
+  { binding = 'KVRules',id='711806815b4f4145932e32e2eff37fd8'}
 ]
