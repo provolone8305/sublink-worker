@@ -108,6 +108,10 @@ async function handleRequest(request) {
         });
       }
     }
+    else if (url.pathname === '/rule-providers'){
+      const response = await fetch('https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ai-!cn.mrs')
+      return new Response(response.body, response)
+    }
 
     return new Response(t('notFound'), { status: 404 });
   } catch (error) {
