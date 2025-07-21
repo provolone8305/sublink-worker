@@ -125,6 +125,10 @@ export class BaseConfigBuilder {
         throw new Error('addNodeSelectGroup must be implemented in child class');
     }
 
+    addNotHKNodeSelectGroup(proxyList){
+        throw new Error('addNotHKNodeSelectGroup must be implemented in child class');
+    }
+
     addOutboundGroups(outbounds, proxyList) {
         throw new Error('addOutboundGroups must be implemented in child class');
     }
@@ -155,6 +159,7 @@ export class BaseConfigBuilder {
 
         this.addAutoSelectGroup(proxyList);
         this.addNodeSelectGroup(proxyList);
+        this.addNotHKNodeSelectGroup(proxyList);
         this.addOutboundGroups(outbounds, proxyList);
         this.addCustomRuleGroups(proxyList);
         this.addFallBackGroup(proxyList);

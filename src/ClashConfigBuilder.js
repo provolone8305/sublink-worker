@@ -162,6 +162,18 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
             proxies: proxyList
         });
     }
+    addNotHKNodeSelectGroup(proxyList) {
+        const regex = /香港|HK|香港增补字符集|HKSCS/i;
+        let notHKNodeList = DeepCopy(proxyList)
+        notHKNodeList.filter(node =>{
+            !regex.test(node)
+        })
+        this.config['proxy-groups'].unshift({
+            type: "url-test",
+            name: '非香港节点',
+            proxies: notHKNodeList
+        });
+    }
 
     addOutboundGroups(outbounds, proxyList) {
         outbounds.forEach(outbound => {
@@ -183,6 +195,14 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
                     type: "select",
                     name: t(`outboundNames.${outbound}`),
                     proxies: ['DIRECT', 'REJECT', t('outboundNames.Node Select')]
+                });
+            }
+            else if (outbound ===  'AI Services'){
+                console.log('AI的服务，将单独处理')
+                this.config['proxy-groups'].push({
+                    type: "select",
+                    name: t(`outboundNames.${outbound}`),
+                    proxies: ['非香港节点']
                 });
             }
             else if (outbound !== t('outboundNames.Node Select')) {
