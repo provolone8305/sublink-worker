@@ -164,10 +164,8 @@ export class ClashConfigBuilder extends BaseConfigBuilder {
     }
     addNotHKNodeSelectGroup(proxyList) {
         const regex = /香港|HK|香港增补字符集|HKSCS/i;
-        let notHKNodeList = DeepCopy(proxyList)
-        notHKNodeList.filter(node =>{
-            !regex.test(node)
-        })
+        const notHKNodeList=proxyList.filter(node => !regex.test(node));
+        console.log(notHKNodeList)
         this.config['proxy-groups'].unshift({
             type: "url-test",
             name: '非香港节点',

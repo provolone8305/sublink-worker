@@ -156,10 +156,10 @@ export class BaseConfigBuilder {
     addSelectors() {
         const outbounds = this.getOutboundsList();
         const proxyList = this.getProxyList();
-
+        this.addNotHKNodeSelectGroup(proxyList);
         this.addAutoSelectGroup(proxyList);
         this.addNodeSelectGroup(proxyList);
-        this.addNotHKNodeSelectGroup(proxyList);
+
         this.addOutboundGroups(outbounds, proxyList);
         this.addCustomRuleGroups(proxyList);
         this.addFallBackGroup(proxyList);
